@@ -15,11 +15,10 @@ class PDFViewer(BoxLayout):
     def __init__(self, pdf_path, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
-        self.padding = 15
+        self.padding = 30
         self.btns_box: BoxLayout = BoxLayout(orientation="horizontal")
         self.btns_box.size_hint = (1, 0.3)
-        self.btns_box.padding = 5
-
+        self.btns_box.padding = 20
         self.pdf_document: fitz.Document = fitz.open(pdf_path)
         self.current_page: int = 0
         self.pages_count: int = len(self.pdf_document)
@@ -36,7 +35,10 @@ class PDFViewer(BoxLayout):
         )
         self.next_page_btn.bind(on_press=self.next_page)
         self.btns_box.add_widget(self.next_page_btn)
-
+        self.spacer_label: Label = Label()
+        # self.spacer_label.height = 20
+        self.spacer_label.size_hint = (1, 0.2)
+        self.add_widget(self.spacer_label)
         if self.pages_count == 1:
             self.next_page_btn.text = ">"
             self.prev_page_btn.text = "<"
@@ -45,6 +47,7 @@ class PDFViewer(BoxLayout):
 
         self.image_widget: Image = Image()
         self.image_widget.pos_hint = {"center_x": 0.5, "center_y": 0.5}
+
         self.add_widget(self.image_widget)
         self.page: fitz.Page = self.load_page()
         self.horizontal_DPI: float = 0
@@ -62,10 +65,22 @@ class PDFViewer(BoxLayout):
             # size_hint=(0, 0.2),
             size=(200, 50),
         )
-        self.label.color = (0, 0, 0, 1)  # black
+        # self.label.color = (0, 0, 0, 1)  # black
+        self.label.color = (0, 0, 1, 1)  # blue
         Window.bind(mouse_pos=self.on_mouse_move)
         self.add_widget(self.label)
         self.points = []
+        self.window_y_add: float = 50
+        self.window_x_add: float = 30
+        self.set_window_size()
+
+    def set_window_size(
+        self,
+    ):
+        Window.size = (
+            self.image_widget.size[0] + self.window_x_add,
+            self.image_widget.size[1] + self.window_y_add,
+        )
 
     def next_page(self, instance):
         # Logic to change the PDF page
@@ -298,8 +313,8 @@ class Kivy_PDF_Measure_app(App):
         ruler_12_inch_30cm: str = "Print-Ruler-12-inches-and-30-centimeters-A4.pdf"
         Ruler_cm: str = "Ruler_15-cm_by_mm.pdf"
 
-        # pdf_path: str = os.path.join(my_path, Ruler_inch)
-        pdf_path: str = os.path.join(my_path, ruler_12_inch_30cm)
+        pdf_path: str = os.path.join(my_path, Ruler_inch)
+        # pdf_path: str = os.path.join(my_path, ruler_12_inch_30cm)
         # pdf_path: str = os.path.join(my_path, Ruler_cm)
 
         # pdf_path: str = r"D:\11\02\14\kivy_measure_pdf\Ruler_6-inch_by_4.pdf"
