@@ -9,57 +9,88 @@ from kivy.graphics.texture import Texture
 from kivy.uix.label import Label
 from kivy.core.window import Window
 
+from kivy.graphics import Color, Rectangle
+
+from PDF_Helper import PDF_Helper
+
+
+class ColoredLabel(Label):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            # Set the background color (RGBA)
+            Color(0.5, 0.5, 0.5, 1)  # Grey color
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+
+        # Bind the size and position to update the rectangle
+        self.bind(size=self._update_rect, pos=self._update_rect)
+
+    def _update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
 
 # class PDFViewer(FloatLayout):
 class PDFViewer(BoxLayout):
     def __init__(self, pdf_path: str, **kwargs):
         super().__init__(**kwargs)
+        self.pdf_helper: PDF_Helper = PDF_Helper()
+
         self.orientation = "vertical"
+        self.size_hint = (1, 1)
         self.padding = 30
+        # self.spacer_box: BoxLayout = BoxLayout(orientation="horizontal")
+        # self.spacer_box.size_hint = (1, 2)
         self.btns_box: BoxLayout = BoxLayout(orientation="horizontal")
-        self.btns_box.size_hint = (1, 0.3)
-        self.btns_box.padding = 20
-        self.pdf_document: fitz.Document = fitz.open(pdf_path)
+        self.btns_box.size_hint = (1, 2)
+        # self.btns_box.padding = 20
+        self.pdf_document: fitz.Document = self.pdf_helper.open_pdf(
+            pdf_path=pdf_path
+        )  # fitz.open(pdf_path)
         self.current_page: int = 0
         self.pages_count: int = len(self.pdf_document)
-
+        self.current_page_lbl: ColoredLabel = ColoredLabel(
+            text=str(self.pdf_helper.current_page),
+            size_hint=(0.3, 1),
+            font_size="20dp",
+            halign="center",  # Center horizontally
+            valign="middle",  # Center vertically
+        )
         self.prev_page_btn = Button(
-            text=f"< to Page:({self.pages_count-1})", size_hint=(1, 1)
+            text=f"< to Page:({self.pdf_helper.pages_count-1})", size_hint=(1, 1)
         )
         self.prev_page_btn.bind(on_press=self.previous_page)
-        self.btns_box.add_widget(self.prev_page_btn)
 
-        self.add_widget(self.btns_box)
         self.next_page_btn = Button(
-            text=f"to Page:({self.current_page+1}) >", size_hint=(1, 1)
+            text=f"to Page:({self.pdf_helper.current_page+1}) >",
+            size_hint=(1, 1),
         )
         self.next_page_btn.bind(on_press=self.next_page)
+
+        self.btns_box.add_widget(self.prev_page_btn)
+
+        self.btns_box.add_widget(self.current_page_lbl)
         self.btns_box.add_widget(self.next_page_btn)
-        self.spacer_label: Label = Label()
+        # self.spacer_label: Label = Label()
         # self.spacer_label.height = 20
-        self.spacer_label.size_hint = (1, 0.2)
-        self.add_widget(self.spacer_label)
-        if self.pages_count == 1:
+        # self.spacer_label.size_hint = (1, 0.2)
+        # self.add_widget(self.spacer_label)
+
+        if self.pdf_helper.pages_count == 1:
             self.next_page_btn.text = ">"
             self.prev_page_btn.text = "<"
             self.next_page_btn.disabled = True
             self.prev_page_btn.disabled = True
-
+        # self.image_box: BoxLayout = BoxLayout(orientation="vertical")
         self.image_widget: Image = Image()
         self.image_widget.pos_hint = {"center_x": 0.5, "center_y": 0.5}
-
+        # self.image_widget.size_hint = (1, 0.8)
+        # self.image_box.add_widget(self.image_widget)
         self.add_widget(self.image_widget)
-        self.page: fitz.Page = self.load_page()
-        self.horizontal_DPI: float = 0
-        self.vertical_DPI: float = 0
-        self.width_in_millimeters: float = 0
-        self.height_in_millimeters: float = 0
-        (
-            self.horizontal_DPI,
-            self.vertical_DPI,
-            self.width_in_millimeters,
-            self.height_in_millimeters,
-        ) = self.get_pdf_dpi_and_mm(page=self.page)
+        self.add_widget(self.btns_box)
+        # self.add_widget(self.image_box)
+
+        self.load_page()
         self.label = Label(
             text="Hello",
             # size_hint=(0, 0.2),
@@ -70,7 +101,7 @@ class PDFViewer(BoxLayout):
         Window.bind(mouse_pos=self.on_mouse_move)
         self.add_widget(self.label)
         self.points = []
-        self.window_y_add: float = 50
+        self.window_y_add: float = 100
         self.window_x_add: float = 30
         self.set_window_size()
 
@@ -83,59 +114,56 @@ class PDFViewer(BoxLayout):
         )
 
     def next_page(self, instance):
-        # Logic to change the PDF page
-        if self.current_page < self.pages_count:
-            self.current_page += 1
-        if self.current_page == self.pages_count:
-            self.current_page = 0
-        print(f"Changed to page: {self.current_page}")
+        self.pdf_helper.next_page()
+        print(f"current page: {self.pdf_helper.current_page}")
         self.load_page()
 
     def previous_page(self, instance):
-        # Logic to change the PDF page
-        if self.current_page <= self.pages_count:
-            self.current_page -= 1
-        if self.current_page == 0:
-            self.current_page = self.pages_count - 1
-        print(f"Changed to page: {self.current_page}")
+        self.pdf_helper.previous_page()
+        print(f"current page: {self.pdf_helper.current_page}")
         self.load_page()
 
-    def load_page(self) -> fitz.Page:
+    def load_page(self):
         """
         Loads the specified page from the PDF document and displays it in the image widget.
 
         This method retrieves the current page from the PDF document, converts it to a pixmap,
         and then sets the texture and size of the image widget to display the page content.
         """
-        page: fitz.Page = self.pdf_document[
-            self.current_page
-        ]  # Retrieve the current page
-        # page.rect  # You can use this to access the page's rectangle if needed
-
-        pix: fitz.Pixmap = page.get_pixmap()  # Convert the page to a pixmap
-        self.image_widget.texture = self.create_texture(
-            pix
-        )  # Set the image widget's texture
-        self.image_widget.size = (pix.width, pix.height)  # Set the image widget's size
+        pix_map: fitz.Pixmap = self.pdf_helper.get_current_pixmap()
+        self.image_widget.texture = self.create_texture(pix=pix_map)
+        self.image_widget.size = (
+            pix_map.width,
+            pix_map.height,
+        )  # Set the image widget's size
         self.image_widget.size_hint = (
             None,
             None,
         )  # Disable size hints for manual control
         self.set_btn_texts()
-        return page
 
     def set_btn_texts(self):
-        if not self.pages_count == 1:
-            if self.current_page == 0:
-                self.prev_page_btn.text = f"< to Page:({self.pages_count-1})"
-                self.next_page_btn.text = f"to Page:({self.current_page+1}) >"
-            elif self.current_page == self.pages_count - 1:
-                self.prev_page_btn.text = f"< to Page:({self.current_page-1})"
+        self.current_page_lbl.text = str(self.pdf_helper.current_page)
+        if not self.pdf_helper.pages_count == 1:
+            if self.pdf_helper.current_page == 0:
+                self.prev_page_btn.text = f"< to Page:({self.pdf_helper.pages_count-1})"
+                self.next_page_btn.text = (
+                    f"to Page:({self.pdf_helper.current_page+1}) >"
+                )
+
+            elif self.pdf_helper.current_page == self.pdf_helper.pages_count - 1:
+                self.prev_page_btn.text = (
+                    f"< to Page:({self.pdf_helper.current_page-1})"
+                )
                 self.next_page_btn.text = f"to Page:({0}) >"
 
             else:
-                self.prev_page_btn.text = f"< to Page:({self.current_page-1})"
-                self.next_page_btn.text = f"to Page:({self.current_page+1}) >"
+                self.prev_page_btn.text = (
+                    f"< to Page:({self.pdf_helper.current_page-1})"
+                )
+                self.next_page_btn.text = (
+                    f"to Page:({self.pdf_helper.current_page+1}) >"
+                )
 
     def create_texture(self, pix: fitz.Pixmap):
         """
@@ -228,38 +256,22 @@ class PDFViewer(BoxLayout):
         This method calculates the Euclidean distance between two points provided in the `self.points` attribute.
         It then converts the pixel distance to DPI, millimeters, and inches based on the page's DPI.
         """
-        p1: tuple[float, float] = self.points[0]  # First point (x, y) in pixels
-        p2: tuple[float, float] = self.points[1]  # Second point (x, y) in pixels
 
-        # Calculate the Euclidean distance in pixels
-        distance_pixels: float = ((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2) ** 0.5
+        distance_pixels: float
+        distance_mm: float
+        distance_inch: float
 
-        # Get the page's DPI
-        page: fitz.Page = self.pdf_document[self.current_page]
-        pix: fitz.Pixmap = page.get_pixmap()
-        dpi_x: float = pix.xres  # Horizontal DPI
-        dpi_y: float = pix.yres  # Vertical DPI
+        distance_pixels, distance_mm, distance_inch = self.pdf_helper.measure_distance(
+            p1=self.points[0],
+            p2=self.points[1],
+        )
 
-        # Convert pixels to DPI
-        distance_dpi: float = distance_pixels / (dpi_x / 72)
-
-        # Convert pixels to millimeters
-        distance_mm: float = distance_pixels * 0.352777  # 1 pixel = 0.352777 mm
-
-        # # Convert pixels to inches
-        # distance_inch: float = (
-        #     distance_pixels / (dpi_x / 72) * 0.0393701
-        # )  # 1 inch = 25.4 mm
-        # Convert pixels to inches
-        distance_inch: float = distance_mm / 25.4  # 1 inch = 25.4 mm
         # Print the distances in different units
         print("-" * 30)
         print(f"Distance: {distance_pixels:.2f} pixels")
-        # print(f"Distance: {distance_dpi:.2f} DPI")
         print(f"Distance: {distance_mm:.2f} mm")
         print(f"Distance: {distance_inch:.2f} inches")
-        # Update the label with the measured distance
-        # self.label.text = f"Distance: {distance_pixels:.2f} pixels"
+
         # Update the label with all distances
         self.label.text = (
             f"Distance: \n"
@@ -269,53 +281,19 @@ class PDFViewer(BoxLayout):
             # f"{distance_dpi:.2f} DPI\n"
         )
 
-    def get_pdf_dpi_and_mm(self, page: fitz.Page) -> tuple[float, float, float, float]:
-        """
-        Retrieves the DPI (dots per inch) and dimensions in millimeters of a PDF file.
 
-        Args:
-            page (fitz.Page): a page of an pdf loaded with fritz.
-
-        Returns:
-            tuple[float, float, float, float]: A tuple containing the horizontal DPI, vertical DPI,
-                                                width in millimeters, and height in millimeters.
-
-        Example usage:
-            dpi_x, dpi_y, width_mm, height_mm = get_pdf_dpi_and_mm("example.pdf")
-            print(f"DPI: {dpi_x} x {dpi_y}")
-            print(f"Width: {width_mm} mm, Height: {height_mm} mm")
-
-        """
-
-        # Get the page's dimensions in points
-        rect: fitz.Rect = page.rect
-        width_points: float = rect.width  # Width in points
-        height_points: float = rect.height  # Height in points
-
-        # Convert points to inches (1 point = 1/72 inch)
-        width_inches: float = width_points / 72
-        height_inches: float = height_points / 72
-        # Calculate DPI (assuming the page is in a standard 8.5x11 inch format)
-        dpi_x: float = width_points / width_inches  # Horizontal DPI
-        dpi_y: float = height_points / height_inches  # Vertical DPI
-
-        # Convert points to millimeters (1 point = 0.352777 mm)
-        width_mm: float = round(width_points * 0.352777, 1)
-        height_mm: float = round(height_points * 0.352777, 1)
-
-        return (dpi_x, dpi_y, width_mm, height_mm)
-
-
-class Kivy_PDF_Measure_app(App):
+class Kivy_PDF_Measure_app_2(App):
     def build(self):
         my_path: str = os.path.dirname(__file__)
         Ruler_inch: str = "Ruler_6-inch_by_4.pdf"
         ruler_12_inch_30cm: str = "Print-Ruler-12-inches-and-30-centimeters-A4.pdf"
         Ruler_cm: str = "Ruler_15-cm_by_mm.pdf"
+        Meta_quest: str = "Meta-Quest-2-Quickstart-Guide-DE.pdf"
 
-        pdf_path: str = os.path.join(my_path, Ruler_inch)
+        # pdf_path: str = os.path.join(my_path, Ruler_inch)
         # pdf_path: str = os.path.join(my_path, ruler_12_inch_30cm)
         # pdf_path: str = os.path.join(my_path, Ruler_cm)
+        pdf_path: str = os.path.join(my_path, Meta_quest)
 
         # pdf_path: str = r"D:\11\02\14\kivy_measure_pdf\Ruler_6-inch_by_4.pdf"
         # pdf_path: str = (
@@ -328,4 +306,4 @@ class Kivy_PDF_Measure_app(App):
 
 
 if __name__ == "__main__":
-    Kivy_PDF_Measure_app().run()
+    Kivy_PDF_Measure_app_2().run()
